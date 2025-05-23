@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+from decouple import config, Csv
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ygqur%aefd*r3&0-ta43l_3_7(p4z%vzl2cl72(nuam$5s-q9o'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-ygqur%aefd*r3&0-ta43l_3_7(p4z%vzl2cl72(nuam$5s-q9o')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 
 # Application definition
@@ -84,25 +86,29 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Default to SQLite for development, can be overridden by environment variables
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': config('DB_ENGINE', default='django.db.backends.sqlite3'),
+        'NAME': config('DB_NAME', default=BASE_DIR / 'db.sqlite3'),
+        'USER': config('DB_USER', default=''),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default=''),
+        'PORT': config('DB_PORT', default=''),
     }
 }
 
+# PostgreSQL configuration (uncomment and use environment variables)
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'your_database_name',
-#         'USER': 'your_database_user',   
-#         'PASSWORD': 'your_database_password',
-#         'HOST': 'your_database_host',
-#         'PORT': 'your_database_port',
+#         'NAME': config('DB_NAME'),
+#         'USER': config('DB_USER'),   
+#         'PASSWORD': config('DB_PASSWORD'),
+#         'HOST': config('DB_HOST', default='localhost'),
+#         'PORT': config('DB_PORT', default='5432'),
 #     }
 # }
-
-
 
 
 # Password validation
@@ -140,6 +146,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -177,23 +184,31 @@ SIMPLE_JWT = {
     ),
     "ROTATE_REFRESH_TOKENS": False,
     "ALGORITHM": "HS256",
-    "SIGNING_KEY": "1234",
+    "SIGNING_KEY": config('JWT_SIGNING_KEY', default="1234"),
 }
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = False  # Set to True during development if needed
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-]
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=False, cast=bool)
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS', 
+    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173',
+    cast=Csv()
+)
 
 # File uploads
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# OpenAI API settings
-OPENAI_API_KEY = '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'  # Replace with your actual key or use environment variables
+# OpenAI API settings - NOW SECURE! 🔐
+OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
+
+# Validate OpenAI API key
+if not OPENAI_API_KEY:
+    if DEBUG:
+        print("⚠️  WARNING: OPENAI_API_KEY not found in environment variables!")
+        print("   Add your OpenAI API key to .env file for AI features to work.")
+    else:
+        raise ValueError("OPENAI_API_KEY environment variable is required!")
 
 # Storage settings
 DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
@@ -201,10 +216,14 @@ DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 # DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # AWS Settings (if using S3)
-# AWS_ACCESS_KEY_ID = 'your-access-key'
-# AWS_SECRET_ACCESS_KEY = 'your-secret-key'
-# AWS_STORAGE_BUCKET_NAME = 'your-bucket-name'
-# AWS_S3_REGION_NAME = 'your-region'
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID', default='')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default='')
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='')
+AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+
+# Create logs directory if it doesn't exist
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
 
 # Logging configuration
 LOGGING = {
@@ -227,7 +246,7 @@ LOGGING = {
         },
         'file': {
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+            'filename': LOGS_DIR / 'django.log',
             'formatter': 'verbose',
         },
     },

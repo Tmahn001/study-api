@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status, permissions, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .models import (
@@ -20,11 +20,12 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers
 from .services.ai_service import generate_questions
 from django.utils import timezone
 import logging
+import openai
 
 logger = logging.getLogger(__name__)
 
@@ -670,3 +671,37 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         group = self.get_object()
         group.members.remove(request.user)
         return Response({"message": "Successfully left the group"})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Health check endpoint to verify API status and configuration
+    """
+    status = {
+        'status': 'healthy',
+        'debug': settings.DEBUG,
+        'openai_configured': bool(settings.OPENAI_API_KEY and settings.OPENAI_API_KEY != 'sk-your_openai_api_key_here'),
+        'database': 'connected',
+    }
+    
+    # Test database connection
+    try:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        status['database'] = 'connected'
+    except Exception as e:
+        status['database'] = f'error: {str(e)}'
+        status['status'] = 'degraded'
+    
+    # Test OpenAI configuration (without making actual API call)
+    if not status['openai_configured']:
+        status['openai_status'] = 'not_configured'
+        status['openai_message'] = 'Add OPENAI_API_KEY to .env file'
+    else:
+        status['openai_status'] = 'configured'
+        status['openai_message'] = 'API key is set'
+    
+    return Response(status)
